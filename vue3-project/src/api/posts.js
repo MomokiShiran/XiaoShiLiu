@@ -56,7 +56,9 @@ function transformPostData(backendPost) {
       tags: backendPost.tags || [],
       createdAt: backendPost.created_at,
       userId: backendPost.user_id
-    }
+    },
+    // 笔记状态：0-已发布，1-草稿，2-待审核
+    status: backendPost.status
   }
 
   return transformedData;
@@ -331,7 +333,8 @@ export async function getUserPosts(params = {}) {
       keyword,
       category,
       sort = 'created_at',
-      user_id
+      user_id,
+      status
     } = params
 
     const queryParams = {
@@ -342,7 +345,7 @@ export async function getUserPosts(params = {}) {
       searchKeyword: keyword,
       category,
       sort,
-      status: 'all' // 笔记管理页面显示已发布(0)和待审核(2)的笔记
+      status: status || 'all' // 笔记管理页面显示已发布(0)和待审核(2)的笔记
     }
 
     const response = await getPostList(queryParams)
