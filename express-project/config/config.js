@@ -141,6 +141,12 @@ const config = {
     backupApi: process.env.IP_LOCATION_BACKUP_API || 'https://api.pearktrue.cn/api/ip/high',
     primaryTimeout: parseInt(process.env.IP_LOCATION_PRIMARY_TIMEOUT) || 10000,
     backupTimeout: parseInt(process.env.IP_LOCATION_BACKUP_TIMEOUT) || 5000
+  },
+
+  // 日志配置
+  log: {
+    enabled: process.env.LOG_ENABLED === 'true', // 默认不启用
+    dir: process.env.LOG_DIR || 'logs',
   }
 };
 
