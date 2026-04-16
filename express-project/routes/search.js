@@ -97,50 +97,74 @@ router.get('/', optionalAuth, async (req, res) => {
       );
 
       // 获取每个笔记的图片、标签和用户点赞收藏状态
-      for (let post of postRows) {
+      if (postRows.length > 0) {
+        const postIds = postRows.map(p => p.id);
+
         // 修复头像字段映射问题
-        post.avatar = post.user_avatar;
-        post.author = post.nickname;
-        
-        // 根据笔记类型获取图片或视频封面
-        if (post.type === 2) {
-          // 视频笔记：获取视频封面
-          const [videos] = await pool.execute('SELECT video_url, cover_url FROM post_videos WHERE post_id = ?', [post.id.toString()]);
-          post.images = videos.length > 0 && videos[0].cover_url ? [videos[0].cover_url] : [];
-          post.video_url = videos.length > 0 ? videos[0].video_url : null;
-          // 为瀑布流设置image字段
-          post.image = videos.length > 0 && videos[0].cover_url ? videos[0].cover_url : null;
-        } else {
-          // 图文笔记：获取笔记图片
-          const [images] = await pool.execute('SELECT image_url FROM post_images WHERE post_id = ?', [post.id.toString()]);
-          post.images = images.map(img => img.image_url);
-          // 为瀑布流设置image字段（取第一张图片）
-          post.image = images.length > 0 ? images[0].image_url : null;
+        for (let post of postRows) {
+          post.avatar = post.user_avatar;
+          post.author = post.nickname;
         }
 
-        // 获取笔记标签
-        const [tags] = await pool.execute(
-          'SELECT t.id, t.name FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = ?',
-          [post.id.toString()]
+        // 批量获取视频信息
+        const [videos] = await pool.query('SELECT post_id, video_url, cover_url FROM post_videos WHERE post_id IN (?)', [postIds]);
+        const videoMap = {};
+        videos.forEach(v => { videoMap[v.post_id] = v; });
+
+        // 批量获取图片信息
+        const [images] = await pool.query('SELECT post_id, image_url FROM post_images WHERE post_id IN (?)', [postIds]);
+        const imageMap = {};
+        images.forEach(img => {
+          if (!imageMap[img.post_id]) imageMap[img.post_id] = [];
+          imageMap[img.post_id].push(img.image_url);
+        });
+
+        // 批量获取标签信息
+        const [tags] = await pool.query(
+          'SELECT pt.post_id, t.id, t.name FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id IN (?)',
+          [postIds]
         );
-        post.tags = tags;
+        const tagMap = {};
+        tags.forEach(t => {
+          if (!tagMap[t.post_id]) tagMap[t.post_id] = [];
+          tagMap[t.post_id].push({ id: t.id, name: t.name });
+        });
 
-        // 检查当前用户是否已点赞和收藏（仅在用户已登录时检查）
+        // 批量获取点赞状态
+        let likedPostIds = new Set();
         if (currentUserId) {
-          const [likeResult] = await pool.execute(
-            'SELECT id FROM likes WHERE user_id = ? AND target_type = 1 AND target_id = ?',
-            [currentUserId.toString(), post.id.toString()]
+          const [likes] = await pool.query(
+            'SELECT target_id FROM likes WHERE user_id = ? AND target_type = 1 AND target_id IN (?)',
+            [currentUserId.toString(), postIds]
           );
-          post.liked = likeResult.length > 0;
+          likedPostIds = new Set(likes.map(l => l.target_id.toString()));
+        }
 
-          const [collectResult] = await pool.execute(
-            'SELECT id FROM collections WHERE user_id = ? AND post_id = ?',
-            [currentUserId.toString(), post.id.toString()]
+        // 批量获取收藏状态
+        let collectedPostIds = new Set();
+        if (currentUserId) {
+          const [collections] = await pool.query(
+            'SELECT post_id FROM collections WHERE user_id = ? AND post_id IN (?)',
+            [currentUserId.toString(), postIds]
           );
-          post.collected = collectResult.length > 0;
-        } else {
-          post.liked = false;
-          post.collected = false;
+          collectedPostIds = new Set(collections.map(c => c.post_id.toString()));
+        }
+
+        // 组装数据
+        for (let post of postRows) {
+          if (post.type === 2) {
+            const video = videoMap[post.id];
+            post.images = video && video.cover_url ? [video.cover_url] : [];
+            post.video_url = video ? video.video_url : null;
+            post.image = video && video.cover_url ? video.cover_url : null;
+          } else {
+            const postImages = imageMap[post.id] || [];
+            post.images = postImages;
+            post.image = postImages.length > 0 ? postImages[0] : null;
+          }
+          post.tags = tagMap[post.id] || [];
+          post.liked = likedPostIds.has(post.id.toString());
+          post.collected = collectedPostIds.has(post.id.toString());
         }
       }
 
@@ -159,7 +183,7 @@ router.get('/', optionalAuth, async (req, res) => {
         const keywordWhereClause = 'WHERE p.status = 0 AND (p.title LIKE ? OR p.content LIKE ? OR u.nickname LIKE ? OR u.user_id LIKE ? OR EXISTS (SELECT 1 FROM post_tags pt2 JOIN tags t2 ON pt2.tag_id = t2.id WHERE pt2.post_id = p.id AND t2.name LIKE ?))';
         const keywordParams = [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`];
 
-        // 获取keyword搜索结果中的标签统计
+        // 获取keyword搜索结果中的标签统计 - 按数量降序排序
         const [tagStatsResult] = await pool.execute(
           `SELECT t.name, COUNT(*) as count
            FROM tags t
@@ -168,7 +192,7 @@ router.get('/', optionalAuth, async (req, res) => {
            LEFT JOIN users u ON p.user_id = u.id
            ${keywordWhereClause}
            GROUP BY t.id, t.name
-           ORDER BY t.name ASC
+           ORDER BY count DESC
            LIMIT 10`,
           keywordParams
         );
@@ -178,6 +202,38 @@ router.get('/', optionalAuth, async (req, res) => {
           label: item.name,
           count: item.count
         }));
+
+        // 如果指定了tag，且tag不在前10中，则需要将其补充进去
+        if (tag && !tagStats.some(t => t.id === tag)) {
+          const [tagCount] = await pool.execute(
+            `SELECT COUNT(*) as count
+             FROM post_tags pt
+             JOIN tags t ON pt.tag_id = t.id
+             JOIN posts p ON pt.post_id = p.id
+             LEFT JOIN users u ON p.user_id = u.id
+             ${keywordWhereClause} AND t.name = ?`,
+            [...keywordParams, tag]
+          );
+          
+          if (tagCount[0].count > 0) {
+            tagStats.push({
+              id: tag,
+              label: tag,
+              count: tagCount[0].count
+            });
+            // 重新排序并保持10个限制
+            tagStats.sort((a, b) => b.count - a.count);
+            if (tagStats.length > 10) {
+              // 如果选中的标签在排序后还是最后一位且超过了10个，则保留它，去掉倒数第二个
+              const tagIndex = tagStats.findIndex(t => t.id === tag);
+              if (tagIndex >= 10) {
+                 tagStats.splice(9, 1); // 去掉第10个
+              } else {
+                 tagStats.pop();
+              }
+            }
+          }
+        }
       }
 
       // all模式直接返回数据，posts模式和videos模式返回posts结构
@@ -220,21 +276,28 @@ router.get('/', optionalAuth, async (req, res) => {
       );
 
       // 检查关注状态（仅在用户已登录时）
-      if (currentUserId) {
-        for (let user of userRows) {
-          // 检查是否已关注
-          const [followResult] = await pool.execute(
-            'SELECT id FROM follows WHERE follower_id = ? AND following_id = ?',
-            [currentUserId.toString(), user.id.toString()]
-          );
-          user.isFollowing = followResult.length > 0;
+      if (currentUserId && userRows.length > 0) {
+        const userIds = userRows.map(u => u.id.toString());
 
-          // 检查是否互相关注
-          const [mutualResult] = await pool.execute(
-            'SELECT id FROM follows WHERE follower_id = ? AND following_id = ?',
-            [user.id.toString(), currentUserId.toString()]
-          );
-          user.isMutual = user.isFollowing && mutualResult.length > 0;
+        // 批量获取关注状态
+        const [follows] = await pool.query(
+          'SELECT following_id FROM follows WHERE follower_id = ? AND following_id IN (?)',
+          [currentUserId.toString(), userIds]
+        );
+        const followingSet = new Set(follows.map(f => f.following_id.toString()));
+
+        // 批量获取互相关注状态
+        const [mutuals] = await pool.query(
+          'SELECT follower_id FROM follows WHERE following_id = ? AND follower_id IN (?)',
+          [currentUserId.toString(), userIds]
+        );
+        const mutualSet = new Set(mutuals.map(f => f.follower_id.toString()));
+
+        for (let user of userRows) {
+          const userIdStr = user.id.toString();
+          user.isFollowing = followingSet.has(userIdStr);
+          const isFollowedBy = mutualSet.has(userIdStr);
+          user.isMutual = user.isFollowing && isFollowedBy;
 
           // 设置按钮类型
           if (user.id.toString() === currentUserId.toString()) {
@@ -243,7 +306,7 @@ router.get('/', optionalAuth, async (req, res) => {
             user.buttonType = 'mutual';
           } else if (user.isFollowing) {
             user.buttonType = 'unfollow';
-          } else if (mutualResult.length > 0) {
+          } else if (isFollowedBy) {
             user.buttonType = 'back';
           } else {
             user.buttonType = 'follow';

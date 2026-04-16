@@ -51,34 +51,49 @@ router.get('/', optionalAuth, async (req, res) => {
 
       const [rows] = await pool.execute(query, queryParams);
 
-      // 获取每个草稿的图片和标签
-      for (let post of rows) {
-        // 根据笔记类型获取图片或视频封面
-        if (post.type === 2) {
-          // 视频笔记：获取视频封面
-          const [videos] = await pool.execute('SELECT video_url, cover_url FROM post_videos WHERE post_id = ?', [post.id]);
-          post.images = videos.length > 0 && videos[0].cover_url ? [videos[0].cover_url] : [];
-          post.video_url = videos.length > 0 ? videos[0].video_url : null;
-          // 为瀑布流设置image字段
-          post.image = videos.length > 0 && videos[0].cover_url ? videos[0].cover_url : null;
-        } else {
-          // 图文笔记：获取笔记图片
-          const [images] = await pool.execute('SELECT image_url FROM post_images WHERE post_id = ?', [post.id]);
-          post.images = images.map(img => img.image_url);
-          // 为瀑布流设置image字段（取第一张图片）
-          post.image = images.length > 0 ? images[0].image_url : null;
-        }
+      if (rows.length > 0) {
+        const postIds = rows.map(p => p.id);
+        
+        // 批量获取视频信息
+        const [videos] = await pool.query('SELECT post_id, video_url, cover_url FROM post_videos WHERE post_id IN (?)', [postIds]);
+        const videoMap = {};
+        videos.forEach(v => { videoMap[v.post_id] = v; });
 
-        // 获取笔记标签
-        const [tags] = await pool.execute(
-          'SELECT t.id, t.name FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = ?',
-          [post.id]
+        // 批量获取图片信息
+        const [images] = await pool.query('SELECT post_id, image_url FROM post_images WHERE post_id IN (?)', [postIds]);
+        const imageMap = {};
+        images.forEach(img => {
+          if (!imageMap[img.post_id]) imageMap[img.post_id] = [];
+          imageMap[img.post_id].push(img.image_url);
+        });
+
+        // 批量获取标签信息
+        const [tags] = await pool.query(
+          'SELECT pt.post_id, t.id, t.name FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id IN (?)',
+          [postIds]
         );
-        post.tags = tags;
+        const tagMap = {};
+        tags.forEach(t => {
+          if (!tagMap[t.post_id]) tagMap[t.post_id] = [];
+          tagMap[t.post_id].push({ id: t.id, name: t.name });
+        });
 
-        // 草稿不需要点赞收藏状态
-        post.liked = false;
-        post.collected = false;
+        // 组装数据
+        for (let post of rows) {
+          if (post.type === 2) {
+            const video = videoMap[post.id];
+            post.images = video && video.cover_url ? [video.cover_url] : [];
+            post.video_url = video ? video.video_url : null;
+            post.image = video && video.cover_url ? video.cover_url : null;
+          } else {
+            const postImages = imageMap[post.id] || [];
+            post.images = postImages;
+            post.image = postImages.length > 0 ? postImages[0] : null;
+          }
+          post.tags = tagMap[post.id] || [];
+          post.liked = false;
+          post.collected = false;
+        }
       }
 
       // 获取草稿总数
@@ -197,47 +212,68 @@ router.get('/', optionalAuth, async (req, res) => {
 
 
     // 获取每个笔记的图片、标签和用户点赞收藏状态
-    for (let post of rows) {
-      // 根据笔记类型获取图片或视频封面
-      if (post.type === 2) {
-        // 视频笔记：获取视频封面
-        const [videos] = await pool.execute('SELECT video_url, cover_url FROM post_videos WHERE post_id = ?', [post.id]);
-        post.images = videos.length > 0 && videos[0].cover_url ? [videos[0].cover_url] : [];
-        post.video_url = videos.length > 0 ? videos[0].video_url : null;
-        // 为瀑布流设置image字段
-        post.image = videos.length > 0 && videos[0].cover_url ? videos[0].cover_url : null;
-      } else {
-        // 图文笔记：获取笔记图片
-        const [images] = await pool.execute('SELECT image_url FROM post_images WHERE post_id = ?', [post.id]);
-        post.images = images.map(img => img.image_url);
-        // 为瀑布流设置image字段（取第一张图片）
-        post.image = images.length > 0 ? images[0].image_url : null;
+    if (rows.length > 0) {
+      const postIds = rows.map(p => p.id);
+      
+      // 批量获取视频信息
+      const [videos] = await pool.query('SELECT post_id, video_url, cover_url FROM post_videos WHERE post_id IN (?)', [postIds]);
+      const videoMap = {};
+      videos.forEach(v => { videoMap[v.post_id] = v; });
+
+      // 批量获取图片信息
+      const [images] = await pool.query('SELECT post_id, image_url FROM post_images WHERE post_id IN (?)', [postIds]);
+      const imageMap = {};
+      images.forEach(img => {
+        if (!imageMap[img.post_id]) imageMap[img.post_id] = [];
+        imageMap[img.post_id].push(img.image_url);
+      });
+
+      // 批量获取标签信息
+      const [tags] = await pool.query(
+        'SELECT pt.post_id, t.id, t.name FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id IN (?)',
+        [postIds]
+      );
+      const tagMap = {};
+      tags.forEach(t => {
+        if (!tagMap[t.post_id]) tagMap[t.post_id] = [];
+        tagMap[t.post_id].push({ id: t.id, name: t.name });
+      });
+
+      // 批量获取点赞状态
+      let likedPostIds = new Set();
+      if (currentUserId) {
+        const [likes] = await pool.query(
+          'SELECT target_id FROM likes WHERE user_id = ? AND target_type = 1 AND target_id IN (?)',
+          [currentUserId.toString(), postIds]
+        );
+        likedPostIds = new Set(likes.map(l => l.target_id.toString()));
       }
 
-      // 获取笔记标签
-      const [tags] = await pool.execute(
-        'SELECT t.id, t.name FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = ?',
-        [post.id]
-      );
-      post.tags = tags;
-
-      // 检查当前用户是否已点赞（仅在用户已登录时检查）
+      // 批量获取收藏状态
+      let collectedPostIds = new Set();
       if (currentUserId) {
-        const [likeResult] = await pool.execute(
-          'SELECT id FROM likes WHERE user_id = ? AND target_type = 1 AND target_id = ?',
-          [currentUserId, post.id]
+        const [collections] = await pool.query(
+          'SELECT post_id FROM collections WHERE user_id = ? AND post_id IN (?)',
+          [currentUserId.toString(), postIds]
         );
-        post.liked = likeResult.length > 0;
+        collectedPostIds = new Set(collections.map(c => c.post_id.toString()));
+      }
 
-        // 检查当前用户是否已收藏
-        const [collectResult] = await pool.execute(
-          'SELECT id FROM collections WHERE user_id = ? AND post_id = ?',
-          [currentUserId, post.id]
-        );
-        post.collected = collectResult.length > 0;
-      } else {
-        post.liked = false;
-        post.collected = false;
+      // 组装数据
+      for (let post of rows) {
+        if (post.type === 2) {
+          const video = videoMap[post.id];
+          post.images = video && video.cover_url ? [video.cover_url] : [];
+          post.video_url = video ? video.video_url : null;
+          post.image = video && video.cover_url ? video.cover_url : null;
+        } else {
+          const postImages = imageMap[post.id] || [];
+          post.images = postImages;
+          post.image = postImages.length > 0 ? postImages[0] : null;
+        }
+        post.tags = tagMap[post.id] || [];
+        post.liked = likedPostIds.has(post.id.toString());
+        post.collected = collectedPostIds.has(post.id.toString());
       }
     }
 
@@ -603,34 +639,55 @@ router.get('/search', optionalAuth, async (req, res) => {
     );
 
     // 获取每个笔记的图片、标签和用户点赞收藏状态
-    for (let post of rows) {
-      // 获取笔记图片
-      const [images] = await pool.execute('SELECT image_url FROM post_images WHERE post_id = ?', [post.id]);
-      post.images = images.map(img => img.image_url);
+    if (rows.length > 0) {
+      const postIds = rows.map(p => p.id);
 
-      // 获取笔记标签
-      const [tags] = await pool.execute(
-        'SELECT t.id, t.name FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = ?',
-        [post.id]
+      // 批量获取图片信息
+      const [images] = await pool.query('SELECT post_id, image_url FROM post_images WHERE post_id IN (?)', [postIds]);
+      const imageMap = {};
+      images.forEach(img => {
+        if (!imageMap[img.post_id]) imageMap[img.post_id] = [];
+        imageMap[img.post_id].push(img.image_url);
+      });
+
+      // 批量获取标签信息
+      const [tags] = await pool.query(
+        'SELECT pt.post_id, t.id, t.name FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id IN (?)',
+        [postIds]
       );
-      post.tags = tags;
+      const tagMap = {};
+      tags.forEach(t => {
+        if (!tagMap[t.post_id]) tagMap[t.post_id] = [];
+        tagMap[t.post_id].push({ id: t.id, name: t.name });
+      });
 
-      // 检查当前用户是否已点赞和收藏（仅在用户已登录时检查）
+      // 批量获取点赞状态
+      let likedPostIds = new Set();
       if (currentUserId) {
-        const [likeResult] = await pool.execute(
-          'SELECT id FROM likes WHERE user_id = ? AND target_type = 1 AND target_id = ?',
-          [currentUserId, post.id]
+        const [likes] = await pool.query(
+          'SELECT target_id FROM likes WHERE user_id = ? AND target_type = 1 AND target_id IN (?)',
+          [currentUserId.toString(), postIds]
         );
-        post.liked = likeResult.length > 0;
+        likedPostIds = new Set(likes.map(l => l.target_id.toString()));
+      }
 
-        const [collectResult] = await pool.execute(
-          'SELECT id FROM collections WHERE user_id = ? AND post_id = ?',
-          [currentUserId, post.id]
+      // 批量获取收藏状态
+      let collectedPostIds = new Set();
+      if (currentUserId) {
+        const [collections] = await pool.query(
+          'SELECT post_id FROM collections WHERE user_id = ? AND post_id IN (?)',
+          [currentUserId.toString(), postIds]
         );
-        post.collected = collectResult.length > 0;
-      } else {
-        post.liked = false;
-        post.collected = false;
+        collectedPostIds = new Set(collections.map(c => c.post_id.toString()));
+      }
+
+      // 组装数据
+      for (let post of rows) {
+        const postImages = imageMap[post.id] || [];
+        post.images = postImages;
+        post.tags = tagMap[post.id] || [];
+        post.liked = likedPostIds.has(post.id.toString());
+        post.collected = collectedPostIds.has(post.id.toString());
       }
     }
 
@@ -695,23 +752,34 @@ router.get('/:id/comments', optionalAuth, async (req, res) => {
     );
 
     // 为每个评论检查点赞状态
-    for (let comment of rows) {
+    if (rows.length > 0) {
+      const commentIds = rows.map(c => c.id);
+
+      // 批量获取点赞状态
+      let likedCommentIds = new Set();
       if (currentUserId) {
-        const [likeResult] = await pool.execute(
-          'SELECT id FROM likes WHERE user_id = ? AND target_type = 2 AND target_id = ?',
-          [currentUserId, comment.id]
+        const [likes] = await pool.query(
+          'SELECT target_id FROM likes WHERE user_id = ? AND target_type = 2 AND target_id IN (?)',
+          [currentUserId.toString(), commentIds]
         );
-        comment.liked = likeResult.length > 0;
-      } else {
-        comment.liked = false;
+        likedCommentIds = new Set(likes.map(l => l.target_id.toString()));
       }
 
-      // 获取子评论数量
-      const [childCount] = await pool.execute(
-        'SELECT COUNT(*) as count FROM comments WHERE parent_id = ?',
-        [comment.id]
+      // 批量获取子评论数量
+      const [replyCounts] = await pool.query(
+        'SELECT parent_id, COUNT(*) as count FROM comments WHERE parent_id IN (?) GROUP BY parent_id',
+        [commentIds]
       );
-      comment.reply_count = childCount[0].count;
+      const replyCountMap = {};
+      replyCounts.forEach(r => {
+        replyCountMap[r.parent_id] = r.count;
+      });
+
+      // 组装数据
+      for (let comment of rows) {
+        comment.liked = likedCommentIds.has(comment.id.toString());
+        comment.reply_count = replyCountMap[comment.id] || 0;
+      }
     }
 
     // 获取总数（直接从posts表读取comment_count字段）

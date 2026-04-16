@@ -574,19 +574,36 @@ const postsCrudConfig = {
       `
       const [posts] = await pool.execute(dataQuery, [...params, String(limit), String(offset)])
 
-      // 为每个笔记获取图片信息和标签信息
-      for (let post of posts) {
-        const [images] = await pool.execute('SELECT image_url FROM post_images WHERE post_id = ?', [String(post.id)])
-        post.images = images.map(img => img.image_url)
+      // 为每个笔记批量获取图片信息和标签信息
+      if (posts.length > 0) {
+        const postIds = posts.map(p => p.id)
 
-        // 获取笔记标签
-        const [tags] = await pool.execute(`
-          SELECT t.id, t.name 
+        // 批量获取图片
+        const [images] = await pool.query('SELECT post_id, image_url FROM post_images WHERE post_id IN (?)', [postIds])
+        const imageMap = {}
+        images.forEach(img => {
+          if (!imageMap[img.post_id]) imageMap[img.post_id] = []
+          imageMap[img.post_id].push(img.image_url)
+        })
+
+        // 批量获取标签
+        const [tags] = await pool.query(`
+          SELECT pt.post_id, t.id, t.name 
           FROM tags t 
           INNER JOIN post_tags pt ON t.id = pt.tag_id 
-          WHERE pt.post_id = ?
-        `, [String(post.id)])
-        post.tags = tags
+          WHERE pt.post_id IN (?)
+        `, [postIds])
+        const tagMap = {}
+        tags.forEach(t => {
+          if (!tagMap[t.post_id]) tagMap[t.post_id] = []
+          tagMap[t.post_id].push({ id: t.id, name: t.name })
+        })
+
+        // 组装数据
+        for (let post of posts) {
+          post.images = imageMap[post.id] || []
+          post.tags = tagMap[post.id] || []
+        }
       }
 
       return {
@@ -683,19 +700,36 @@ router.get('/posts-audit', adminAuth, async (req, res) => {
     `
     const [posts] = await pool.execute(dataQuery, [...params, String(limit), String(offset)])
 
-    // 为每个笔记获取图片信息和标签信息
-    for (let post of posts) {
-      const [images] = await pool.execute('SELECT image_url FROM post_images WHERE post_id = ?', [String(post.id)])
-      post.images = images.map(img => img.image_url)
+    // 为每个笔记批量获取图片信息和标签信息
+    if (posts.length > 0) {
+      const postIds = posts.map(p => p.id)
 
-      // 获取笔记标签
-      const [tags] = await pool.execute(`
-        SELECT t.id, t.name 
+      // 批量获取图片
+      const [images] = await pool.query('SELECT post_id, image_url FROM post_images WHERE post_id IN (?)', [postIds])
+      const imageMap = {}
+      images.forEach(img => {
+        if (!imageMap[img.post_id]) imageMap[img.post_id] = []
+        imageMap[img.post_id].push(img.image_url)
+      })
+
+      // 批量获取标签
+      const [tags] = await pool.query(`
+        SELECT pt.post_id, t.id, t.name 
         FROM tags t 
         INNER JOIN post_tags pt ON t.id = pt.tag_id 
-        WHERE pt.post_id = ?
-      `, [String(post.id)])
-      post.tags = tags
+        WHERE pt.post_id IN (?)
+      `, [postIds])
+      const tagMap = {}
+      tags.forEach(t => {
+        if (!tagMap[t.post_id]) tagMap[t.post_id] = []
+        tagMap[t.post_id].push({ id: t.id, name: t.name })
+      })
+
+      // 组装数据
+      for (let post of posts) {
+        post.images = imageMap[post.id] || []
+        post.tags = tagMap[post.id] || []
+      }
     }
 
     res.json({

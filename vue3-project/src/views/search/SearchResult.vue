@@ -90,19 +90,6 @@ async function searchContent(type = 'all', page = 1, limit = 20) {
         }
     }
 
-    // 处理标签过滤的缓存情况
-    if (selectedTag.value.trim() && keyword.value === cachedKeyword.value) {
-        if (type === 'all' && cachedAllPosts.value.length > 0) {
-            filterPostsByTag()
-            return
-        } else if (type === 'posts' && cachedPostsData.value.length > 0) {
-            filterPostsByTag()
-            return
-        } else if (type === 'videos' && cachedVideosData.value.length > 0) {
-            filterPostsByTag()
-            return
-        }
-    }
 
     loading.value = true
     try {
@@ -132,13 +119,15 @@ async function searchContent(type = 'all', page = 1, limit = 20) {
         if (response && response.code === 200 && response.data) {
             searchResults.value = response.data
 
-            // 提取标签统计数据
+            // 提取标签统计数据 - 始终优先使用后端返回的统计数据
             let currentTagStatsData = []
             if (response.data.tagStats) {
                 currentTagStatsData = response.data.tagStats
             } else if (response.data.posts && response.data.posts.tagStats) {
                 currentTagStatsData = response.data.posts.tagStats
             }
+            
+            // 更新当前显示的标签统计
             tagStats.value = currentTagStatsData
 
             if (type === 'users' || (type === 'all' && response.data.users)) {
@@ -150,30 +139,20 @@ async function searchContent(type = 'all', page = 1, limit = 20) {
                 const postsData = type === 'all' ? response.data : response.data.posts
                 handlePostResults(postsData)
 
-                if (keyword.value.trim() && !selectedTag.value.trim() && postsData && postsData.data && postsData.data.length > 0) {
-                    // 从实际数据计算真实的标签统计
-                    const realTagStats = calculateTagStatsFromPosts(postsData.data)
-
-                    // 根据类型分别缓存数据和标签统计（只有当有数据时才缓存）
+                if (keyword.value.trim() && postsData && postsData.data && postsData.data.length > 0) {
+                    // 根据类型分别缓存数据和标签统计
                     if (type === 'all') {
                         cachedAllPosts.value = postsData.data
-                        cachedAllTagStats.value = realTagStats
+                        cachedAllTagStats.value = currentTagStatsData
                     } else if (type === 'posts') {
                         cachedPostsData.value = postsData.data
-                        cachedPostsTagStats.value = realTagStats
+                        cachedPostsTagStats.value = currentTagStatsData
                     } else if (type === 'videos') {
                         cachedVideosData.value = postsData.data
-                        cachedVideosTagStats.value = realTagStats
+                        cachedVideosTagStats.value = currentTagStatsData
                     }
                     cachedKeyword.value = keyword.value
-
-                    // 更新当前显示的标签统计
-                    tagStats.value = realTagStats
                 }
-            }
-
-            if (selectedTag.value && keyword.value === cachedKeyword.value && cachedAllPosts.value.length > 0 && (type === 'all' || type === 'posts' || type === 'videos')) {
-                filterPostsByTag()
             }
         } else {
             console.error('搜索失败:', response)
@@ -235,54 +214,6 @@ function calculateTagStatsFromPosts(posts) {
         .slice(0, 10)
 
     return tagStats
-}
-
-function filterPostsByTag() {
-    if (!selectedTag.value) {
-        // 如果没有选择标签，根据当前tab显示对应的全部数据，并更新标签统计
-        if (activeTab.value === 'all') {
-            postResults.value = cachedAllPosts.value
-            tagStats.value = cachedAllTagStats.value
-        } else if (activeTab.value === 'posts') {
-            postResults.value = cachedPostsData.value
-            tagStats.value = cachedPostsTagStats.value
-        } else if (activeTab.value === 'videos') {
-            postResults.value = cachedVideosData.value
-            tagStats.value = cachedVideosTagStats.value
-        }
-        return
-    }
-
-    // 根据当前活跃的标签页选择对应的缓存数据进行过滤
-    let sourceData = []
-    if (activeTab.value === 'all') {
-        sourceData = cachedAllPosts.value
-        tagStats.value = cachedAllTagStats.value
-    } else if (activeTab.value === 'posts') {
-        // 如果没有图文缓存数据，从全部数据中过滤出图文类型
-        if (cachedPostsData.value.length > 0) {
-            sourceData = cachedPostsData.value
-            tagStats.value = cachedPostsTagStats.value
-        } else {
-            sourceData = cachedAllPosts.value.filter(post => post.type === 1)
-            tagStats.value = cachedAllTagStats.value
-        }
-    } else if (activeTab.value === 'videos') {
-        // 如果没有视频缓存数据，从全部数据中过滤出视频类型
-        if (cachedVideosData.value.length > 0) {
-            sourceData = cachedVideosData.value
-            tagStats.value = cachedVideosTagStats.value
-        } else {
-            sourceData = cachedAllPosts.value.filter(post => post.type === 2)
-            tagStats.value = cachedAllTagStats.value
-        }
-    }
-
-    const filteredPosts = sourceData.filter(post => {
-        return post.tags && post.tags.some(tag => tag.name === selectedTag.value)
-    })
-
-    postResults.value = filteredPosts
 }
 
 function handleUserResults(usersData) {

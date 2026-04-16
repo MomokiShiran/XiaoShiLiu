@@ -55,24 +55,34 @@ router.get('/', optionalAuth, async (req, res) => {
       [postId.toString(), limit.toString(), offset.toString()]
     );
 
-    // 为每个评论检查点赞状态
-    for (let comment of rows) {
+    if (rows.length > 0) {
+      const commentIds = rows.map(c => c.id);
+      
+      // 批量获取点赞状态
+      let likedCommentIds = new Set();
       if (currentUserId) {
-        const [likeResult] = await pool.execute(
-          'SELECT id FROM likes WHERE user_id = ? AND target_type = 2 AND target_id = ?',
-          [currentUserId.toString(), comment.id.toString()]
+        const [likes] = await pool.query(
+          'SELECT target_id FROM likes WHERE user_id = ? AND target_type = 2 AND target_id IN (?)',
+          [currentUserId.toString(), commentIds]
         );
-        comment.liked = likeResult.length > 0;
-      } else {
-        comment.liked = false;
+        likedCommentIds = new Set(likes.map(l => l.target_id.toString()));
       }
 
-      // 获取子评论数量
-      const [childCount] = await pool.execute(
-        'SELECT COUNT(*) as count FROM comments WHERE parent_id = ?',
-        [comment.id.toString()]
+      // 批量获取子评论数量
+      const [replyCounts] = await pool.query(
+        'SELECT parent_id, COUNT(*) as count FROM comments WHERE parent_id IN (?) GROUP BY parent_id',
+        [commentIds]
       );
-      comment.reply_count = childCount[0].count;
+      const replyCountMap = {};
+      replyCounts.forEach(r => {
+        replyCountMap[r.parent_id] = r.count;
+      });
+
+      // 组装数据
+      for (let comment of rows) {
+        comment.liked = likedCommentIds.has(comment.id.toString());
+        comment.reply_count = replyCountMap[comment.id] || 0;
+      }
     }
 
     // 获取总数
@@ -250,14 +260,19 @@ router.get('/:id/replies', optionalAuth, async (req, res) => {
     );
 
     // 为每个评论检查点赞状态
-    for (let comment of rows) {
-      if (currentUserId) {
-        const [likeResult] = await pool.execute(
-          'SELECT id FROM likes WHERE user_id = ? AND target_type = 2 AND target_id = ?',
-          [currentUserId.toString(), comment.id.toString()]
-        );
-        comment.liked = likeResult.length > 0;
-      } else {
+    if (rows.length > 0 && currentUserId) {
+      const commentIds = rows.map(c => c.id);
+      const [likes] = await pool.query(
+        'SELECT target_id FROM likes WHERE user_id = ? AND target_type = 2 AND target_id IN (?)',
+        [currentUserId.toString(), commentIds]
+      );
+      const likedCommentIds = new Set(likes.map(l => l.target_id.toString()));
+
+      for (let comment of rows) {
+        comment.liked = likedCommentIds.has(comment.id.toString());
+      }
+    } else {
+      for (let comment of rows) {
         comment.liked = false;
       }
     }

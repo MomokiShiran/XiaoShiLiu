@@ -90,8 +90,13 @@ function onMouseMove(e) {
 // 监听activeTab prop变化
 watch(() => props.activeTab, (newVal) => {
     activeId.value = newVal
-    updateSlider()
+    nextTick(updateSlider)
 })
+
+// 监听tabs prop变化，当标签列表改变时，滑块位置也需要重新计算
+watch(() => props.tabs, () => {
+    nextTick(updateSlider)
+}, { deep: true })
 
 // 监听容器可见性变化
 let visibilityObserver = null
