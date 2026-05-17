@@ -41,6 +41,7 @@ const cachedVideosData = ref([]) // 缓存视频数据
 const cachedAllTagStats = ref([])  // 缓存全部标签统计
 const cachedPostsTagStats = ref([])  // 缓存图文标签统计
 const cachedVideosTagStats = ref([])  // 缓存视频标签统计
+const cachedTag = ref('') // 缓存标签参数
 
 const isTagLoading = ref(false)
 let eventListenerKey = null
@@ -70,30 +71,36 @@ const currentTagStats = computed(() => {
     return tagStats.value
 })
 
+let currentSearchId = 0
+
 async function searchContent(type = 'all', page = 1, limit = 20) {
     if (!keyword.value.trim() && !selectedTag.value.trim()) {
         console.warn('搜索关键词和标签都为空')
         return
     }
 
-    // 检查缓存数据（使用数组解构强制触发响应式更新）
-    if (keyword.value.trim() && keyword.value === cachedKeyword.value && !selectedTag.value.trim()) {
+    // 检查缓存数据
+    if (keyword.value.trim() && keyword.value === cachedKeyword.value && selectedTag.value === cachedTag.value) {
         if (type === 'all' && cachedAllPosts.value.length > 0) {
             postResults.value = [...cachedAllPosts.value]
+            tagStats.value = [...cachedAllTagStats.value]
             return
         } else if (type === 'posts' && cachedPostsData.value.length > 0) {
             postResults.value = [...cachedPostsData.value]
+            tagStats.value = [...cachedPostsTagStats.value]
             return
         } else if (type === 'videos' && cachedVideosData.value.length > 0) {
             postResults.value = [...cachedVideosData.value]
+            tagStats.value = [...cachedVideosTagStats.value]
             return
         }
     }
 
-
+    // 竞态处理：为每次请求分配唯一ID
+    const searchId = ++currentSearchId
     loading.value = true
-    try {
 
+    try {
         const params = new URLSearchParams({
             type,
             page: page.toString(),
@@ -114,7 +121,11 @@ async function searchContent(type = 'all', page = 1, limit = 20) {
             }
         }).then(res => res.json())
 
-
+        // 竞态处理：如果不是最新的请求，直接丢弃结果
+        if (searchId !== currentSearchId) {
+            console.log('丢弃过时的请求结果:', type)
+            return
+        }
 
         if (response && response.code === 200 && response.data) {
             searchResults.value = response.data
@@ -152,6 +163,7 @@ async function searchContent(type = 'all', page = 1, limit = 20) {
                         cachedVideosTagStats.value = currentTagStatsData
                     }
                     cachedKeyword.value = keyword.value
+                    cachedTag.value = selectedTag.value
                 }
             }
         } else {
@@ -168,6 +180,7 @@ async function searchContent(type = 'all', page = 1, limit = 20) {
             cachedPostsTagStats.value = []
             cachedVideosTagStats.value = []
             cachedKeyword.value = ''
+            cachedTag.value = ''
         }
     } catch (error) {
         console.error('搜索失败:', error)
@@ -183,6 +196,7 @@ async function searchContent(type = 'all', page = 1, limit = 20) {
         cachedPostsTagStats.value = []
         cachedVideosTagStats.value = []
         cachedKeyword.value = ''
+        cachedTag.value = ''
     } finally {
         loading.value = false
     }
@@ -261,64 +275,25 @@ function handlePostResults(postsData) {
 }
 
 function handleTabChange(item) {
-    const previousTab = activeTab.value
+    if (activeTab.value === item.id && !route.query.tag) return
+
+    // 立即更新 UI 状态，确保视觉响应是实时的
     activeTab.value = item.id
     navigationStore.scrollToTop('instant')
 
-    // 切换tab时，重置标签选择为空并更新URL
-    // 这样确保第二个tab-container恢复到默认的"全部"状态
+    // 构造新的 query，确保状态清理彻底
+    const newQuery = { ...route.query }
+    
+    // 切换tab时，重置标签选择为空
     if (item.id !== 'users') {
         selectedTag.value = ''
-        // 更新路由，移除tag参数并更新tab参数
-        const newQuery = { ...route.query }
         delete newQuery.tag
-        router.replace({
-            name: 'search_result_tab',
-            params: { tab: item.id },
-            query: newQuery
-        })
-    } else {
-        // 更新路由，更新tab参数
-        router.replace({
-            name: 'search_result_tab',
-            params: { tab: item.id },
-            query: route.query
-        })
     }
 
-    if (item.id === 'users') {
-        searchContent(activeTab.value)
-    } else if (item.id === 'videos') {
-        // 视频tab：检查是否有视频缓存数据
-        if (cachedVideosData.value.length > 0 && cachedKeyword.value === keyword.value) {
-            postResults.value = [...cachedVideosData.value]
-            // 更新标签统计显示
-            tagStats.value = cachedVideosTagStats.value
-        } else {
-            // 没有视频缓存或关键词不匹配，重新搜索
-            searchContent('videos')
-        }
-    } else if (item.id === 'posts') {
-        // 图文tab：检查是否有图文缓存数据
-        if (cachedPostsData.value.length > 0 && cachedKeyword.value === keyword.value) {
-            postResults.value = [...cachedPostsData.value]
-            // 更新标签统计显示
-            tagStats.value = cachedPostsTagStats.value
-        } else {
-            // 没有图文缓存或关键词不匹配，重新搜索
-            searchContent('posts')
-        }
-    } else {
-        // 全部tab
-        if (cachedAllPosts.value.length > 0 && cachedKeyword.value === keyword.value) {
-            postResults.value = [...cachedAllPosts.value] // 使用数组复制触发变化检测
-            // 更新标签统计显示
-            tagStats.value = cachedAllTagStats.value
-        } else {
-            // 全部tab使用all类型
-            searchContent('all')
-        }
-    }
+    router.replace({
+        path: `/search_result/${item.id}`,
+        query: newQuery
+    })
 }
 
 function handleTagReload() {
@@ -353,8 +328,9 @@ function handleFloatingBtnReloadRequest() {
     cachedPostsTagStats.value = []
     cachedVideosTagStats.value = []
     cachedKeyword.value = ''
+    cachedTag.value = ''
 
-    // 调用现有的刷新逻辑
+    // 调用刷新逻辑
     handleFloatingBtnReload()
 
     // 重新搜索当前内容
@@ -385,58 +361,50 @@ const isInitialLoad = ref(true)
 watch(() => route.query, (newQuery, oldQuery) => {
     const newKeyword = newQuery.keyword || ''
     const newTag = newQuery.tag || ''
+    const oldKeyword = oldQuery?.keyword || ''
+    const oldTag = oldQuery?.tag || ''
 
-    const keywordChanged = newKeyword !== keyword.value
-    const tagChanged = newTag !== selectedTag.value
-
-    // 初始化时只更新值，不触发搜索（由onMounted统一处理）
+    // 初始化时只同步，不重复请求（由 onMounted 统一触发首刷）
     if (isInitialLoad.value) {
         keyword.value = newKeyword
         selectedTag.value = newTag
         return
     }
 
-    // 只有当关键词或标签真正发生变化时才触发搜索
-    if (keywordChanged || tagChanged) {
-        keyword.value = newKeyword
-        selectedTag.value = newTag
+    // 以路由前后值判断是否变化，避免本地状态提前变化导致漏请求
+    const queryChanged = newKeyword !== oldKeyword || newTag !== oldTag
+    if (!queryChanged) return
 
-        if (keywordChanged) {
-            // 清空所有缓存数据
-            cachedAllPosts.value = []
-            cachedPostsData.value = []
-            cachedVideosData.value = []
-            cachedAllTagStats.value = []
-            cachedPostsTagStats.value = []
-            cachedVideosTagStats.value = []
-            cachedKeyword.value = ''
-        }
-        navigationStore.scrollToTop('instant')
-        searchContent(activeTab.value)
+    keyword.value = newKeyword
+    selectedTag.value = newTag
+
+    // 关键词变化时清空缓存，确保不会吃到旧数据
+    if (newKeyword !== oldKeyword) {
+        cachedAllPosts.value = []
+        cachedPostsData.value = []
+        cachedVideosData.value = []
+        cachedAllTagStats.value = []
+        cachedPostsTagStats.value = []
+        cachedVideosTagStats.value = []
+        cachedKeyword.value = ''
+        cachedTag.value = ''
     }
+
+    navigationStore.scrollToTop('instant')
+    const targetTab = route.params.tab || activeTab.value
+    searchContent(targetTab)
 }, { immediate: true })
 
-watch(() => route.params.tab, (newTab) => {
+watch(() => route.params.tab, (newTab, oldTab) => {
     if (newTab && ['all', 'posts', 'videos', 'users'].includes(newTab)) {
-        // 只更新activeTab，不触发搜索，避免与handleTabChange重复
         activeTab.value = newTab
+
+        // 非初始化阶段，tab 变化时强制请求，避免 URL 与内容不同步
+        if (!isInitialLoad.value && newTab !== oldTab) {
+            searchContent(newTab)
+        }
     }
 }, { immediate: true })
-
-// 处理浏览器后退按钮
-const handlePopState = (event) => {
-    // 检查当前路径是否是搜索结果页面
-    if (route.path.startsWith('/search_result')) {
-        // 导航到全部标签，移除tag参数
-        const newQuery = { ...route.query }
-        delete newQuery.tag
-        router.replace({
-            name: 'search_result_tab',
-            params: { tab: 'all' },
-            query: newQuery
-        })
-    }
-}
 
 onMounted(() => {
     keyword.value = route.query.keyword || ''
@@ -461,16 +429,12 @@ onMounted(() => {
     }
 
     eventListenerKey = eventStore.addEventListener('floating-btn-reload-request', handleFloatingBtnReload)
-    // 添加popstate事件监听器
-    window.addEventListener('popstate', handlePopState)
 })
 
 onUnmounted(() => {
     if (eventListenerKey) {
         eventStore.removeEventListener(eventListenerKey)
     }
-    // 移除popstate事件监听器
-    window.removeEventListener('popstate', handlePopState)
 })
 </script>
 
@@ -496,8 +460,13 @@ onUnmounted(() => {
 
 
             <div v-else>
-                <WaterfallFlow :searchKeyword="keyword" :searchTag="selectedTag" :preloadedPosts="postResults"
-                    :type="activeTab" />
+                <WaterfallFlow
+                    :key="`${activeTab}-${keyword}-${selectedTag}-${postResults.length}`"
+                    :searchKeyword="keyword"
+                    :searchTag="selectedTag"
+                    :preloadedPosts="postResults"
+                    :type="activeTab"
+                />
             </div>
         </div>
         <SearchFloatingBtn @reload="handleFloatingBtnReloadRequest" />

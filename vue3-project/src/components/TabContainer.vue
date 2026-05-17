@@ -26,12 +26,7 @@ const sliderLeft = ref(0)
 const sliderWidth = ref(0)
 
 function tabSelected(item) {
-    // 如果点击的是当前已激活的tab，不执行任何操作
-    if (activeId.value === item.id) return
-
-    activeId.value = item.id
     emit('tab-change', item)
-    updateSlider()
 }
 
 // 更新滑块位置和宽度
