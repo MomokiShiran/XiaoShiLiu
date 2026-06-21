@@ -145,8 +145,12 @@ const config = {
 
   // 日志配置
   log: {
-    enabled: process.env.LOG_ENABLED === 'true', // 默认不启用
+    enabled: process.env.LOG_ENABLED === 'true', // 默认启用
     dir: process.env.LOG_DIR || 'logs',
+    filename: process.env.LOG_FILENAME || 'app.log', // 日志文件名
+    level: process.env.LOG_LEVEL || 'info', // 日志级别
+    maxSize: parseInt(process.env.LOG_MAX_SIZE) || '5mb', // 单个文件大小限制，默认5MB
+    maxFiles: parseInt(process.env.LOG_MAX_FILES) || 5 // 保留文件数
   }
 };
 

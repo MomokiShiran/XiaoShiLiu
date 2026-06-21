@@ -1,50 +1,47 @@
-/**
- * 请求日志记录工具
- * 记录所有 HTTP 请求到文件
- */
-
+const winston = require('winston');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config/config');
 
-function createLogStream() {
-  if (!config.log.enabled){
-    return null;
-  }
-
+// 确保日志目录存在（同步）
+try {
   const logDir = path.join(process.cwd(), config.log.dir);
   if (!fs.existsSync(logDir)) {
     fs.mkdirSync(logDir, { recursive: true });
   }
-
-  const stream = fs.createWriteStream(path.join(logDir, 'request.log'), { flags: 'a' });
-
-  stream.on('error', (err) => console.error('日志流错误：', err));
-  process.on('SIGINT', () => stream.end());
-  process.on('SIGTERM', () => stream.end());
-
-  return stream;
+} catch (error) {
+  console.error('创建日志目录失败:', error.message);
 }
 
-const stream = createLogStream();
+// 创建传输器数组
+const transports = [
+  // 控制台输出
+  new winston.transports.Console({ 
+    format: winston.format.combine(
+      winston.format.timestamp(),
+      winston.format.json()
+    )
+  })
+];
 
-const requestLogger = (req, res, next) => {
-  if (!stream) {
-    return next();
-  }
-  const start = Date.now();
-  res.on('finish', () => {
-    const log = {
-      timestamp: new Date().toISOString(),
-      method: req.method,
-      url: req.originalUrl,
-      ip: req.ip || req.connection.remoteAddress,
-      statusCode: res.statusCode,
-      responseTime: `${Date.now() - start}ms`
-    };
-    stream.write(JSON.stringify(log) + '\n');
-  });
-  next();
-};
+// 如果启用文件日志，添加文件传输器
+if (config.log.enabled) {
+  transports.push(
+    new winston.transports.File({ 
+      filename: path.join(process.cwd(), config.log.dir, config.log.filename),
+      maxsize: config.log.maxSize,
+      maxFiles: config.log.maxFiles,
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+      )
+    })
+  );
+}
 
-module.exports = { requestLogger };
+const logger = winston.createLogger({
+  level: config.log.level,
+  transports: transports
+});
+
+module.exports = { logger };
