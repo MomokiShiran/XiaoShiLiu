@@ -2416,10 +2416,6 @@ const filteredApiGroups = computed(() => {
 </script>
 
 <style scoped>
-* {
-  transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
 .api-docs {
   margin: 0 auto;
 }
@@ -2468,14 +2464,18 @@ const filteredApiGroups = computed(() => {
 .search-input {
   width: 100%;
   padding: 10px 45px 10px 45px;
-  border: 1px solid var(--border-color-primary);
+  border: 1.5px solid var(--border-color-primary);
   border-radius: 25px;
   font-size: 14px;
   outline: none;
-  transition: all 0.3s ease;
   box-sizing: border-box;
   caret-color: var(--primary-color);
   background-color: var(--bg-color-secondary);
+  color: var(--text-color-primary);
+}
+
+.search-input::placeholder {
+  color: var(--text-color-quaternary);
 }
 
 .search-input:focus {
@@ -2644,12 +2644,12 @@ mark {
 }
 
 .group-description {
-  background: #f0f8ff;
+  background: var(--bg-color-secondary);
   padding: 12px 30px;
-  border-left: 4px solid #007bff;
+  border-left: 4px solid var(--primary-color-shadow);
   margin: 0;
   font-size: 14px;
-  color: #495057;
+  color: var(--text-color-primary);
   border-bottom: 1px solid var(--border-color-primary);
 }
 
@@ -2691,6 +2691,7 @@ mark {
   min-width: 60px;
   text-align: center;
   margin-right: 15px;
+  user-select: none;
 }
 
 .method.get {
@@ -2735,7 +2736,7 @@ mark {
 .description,
 .auth-required {
   margin-bottom: 15px;
-  color: #495057;
+  color: var(--text-color-secondary);
 }
 
 .auth-required {

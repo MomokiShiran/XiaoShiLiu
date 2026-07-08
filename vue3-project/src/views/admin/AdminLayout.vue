@@ -30,7 +30,7 @@
                   <div v-for="(option, index) in themeStore.themeOptions" :key="option.value"
                     class="theme-option-wrapper">
                     <button class="theme-toggle-option" :class="{ 'active': themeStore.currentTheme === option.value }"
-                      @click="themeStore.setTheme(option.value)">
+                      @click="themeStore.setTheme(option.value, $event)">
                       <SvgIcon :name="option.icon" width="12" height="12" />
                     </button>
                     <div class="tooltip">{{ option.label }}</div>
@@ -84,7 +84,7 @@
             </div>
           </div>
           <!-- 移动端主题切换按钮 -->
-          <button class="mobile-theme-toggle-btn mobile-only" @click="themeStore.toggleTwoTheme" aria-label="切换主题">
+          <button class="mobile-theme-toggle-btn mobile-only" @click="themeStore.toggleTwoTheme($event)" aria-label="切换主题">
             <SvgIcon :name="themeStore.currentTheme === 'dark' ? 'sun' : 'moon'" width="20" height="20" />
           </button>
 
@@ -396,13 +396,13 @@ const goBack = () => {
 
 .sidebar.collapsed {
   width: 80px;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease, border-color 0.3s ease;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar.collapsed.expanded {
   width: 280px;
   z-index: 1000;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease, border-color 0.3s ease;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-header {
@@ -413,7 +413,6 @@ const goBack = () => {
   justify-content: center;
   align-items: center;
   background-color: var(--bg-color-primary);
-  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .sidebar.collapsed .sidebar-header {
@@ -476,12 +475,10 @@ const goBack = () => {
   overflow-y: auto;
   overflow-x: hidden;
   background-color: var(--bg-color-primary);
-  transition: background-color 0.3s ease;
 }
 
 .sidebar.collapsed.expanded .sidebar-footer {
   border-top: 1px solid var(--border-color-primary);
-  transition: border 0.3s ease, background-color 0.3s ease;
 }
 
 .sidebar-footer {
@@ -511,7 +508,6 @@ const goBack = () => {
   border-radius: 16px;
   padding: 2px;
   border: 1px solid var(--border-color-primary);
-  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .theme-option-wrapper {
@@ -527,7 +523,7 @@ const goBack = () => {
   height: 26px;
   background: var(--bg-color-primary);
   border-radius: 50%;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   z-index: 1;
 }
@@ -543,7 +539,6 @@ const goBack = () => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.3s ease;
   z-index: 2;
   color: var(--text-color-tertiary);
 }
@@ -570,7 +565,7 @@ const goBack = () => {
   white-space: nowrap;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.3s ease, visibility 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   border: 1px solid var(--border-color-primary);
   z-index: 10;
@@ -680,7 +675,6 @@ const goBack = () => {
   color: var(--text-color-secondary);
   cursor: pointer;
   font-size: 14px;
-  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .sidebar.collapsed .logout-btn {
@@ -730,13 +724,11 @@ const goBack = () => {
   padding: 12px 16px;
   color: var(--text-color-primary);
   text-decoration: none;
-  transition: all 0.3s ease;
   border-radius: 999px;
   margin: 4px 0;
   font-weight: 500;
   white-space: nowrap;
   position: relative;
-  transition: all 0.3s ease;
 }
 
 .sidebar.collapsed .nav-item {
@@ -813,7 +805,6 @@ const goBack = () => {
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .header-left h1 {
@@ -845,7 +836,6 @@ const goBack = () => {
   border-radius: 999px;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.3s ease;
   text-decoration: none;
   font-weight: 500;
 }
@@ -865,7 +855,6 @@ const goBack = () => {
   overflow-y: auto;
   background-color: var(--bg-color-secondary);
   flex-direction: column;
-  transition: background-color 0.3s ease;
 }
 
 /* 滚动条样式 */
@@ -1146,7 +1135,6 @@ const goBack = () => {
   overflow-y: auto;
   animation: slideUp 0.3s ease-out;
   min-height: 200px;
-  transition: background-color 0.3s ease;
 }
 
 .filter-menu-content::-webkit-scrollbar {
@@ -1182,7 +1170,6 @@ const goBack = () => {
   align-items: center;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-color-primary);
-  transition: border-color 0.3s ease;
 }
 
 .filter-menu-header h3 {
@@ -1199,7 +1186,6 @@ const goBack = () => {
   cursor: pointer;
   color: var(--text-color-secondary);
   border-radius: 4px;
-  transition: all 0.3s ease;
 }
 
 .close-btn:hover {

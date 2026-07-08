@@ -38,6 +38,29 @@
   --danger-color-dark: rgb(201, 9, 37);
 }
 
+/* ===== View Transitions: 圆形扩散动效 ===== */
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0% at var(--theme-transition-x, 100%) var(--theme-transition-y, 0%));
+  }
+  to {
+    clip-path: circle(150% at var(--theme-transition-x, 100%) var(--theme-transition-y, 0%));
+  }
+}
+
+::view-transition-old(root) {
+  animation: none;
+  opacity: 1;
+}
+
+::view-transition-new(root) {
+  animation: theme-reveal 0.35s ease-out both;
+}
+
+::view-transition-image-pair(root) {
+  isolation: isolate;
+}
+
 /* 深色主题 */
 [data-theme="dark"] {
   /* 主题色 */
@@ -60,7 +83,7 @@
   --bg-color-inverse: #e7e7e7;
 
   /* 边框颜色 */
-  --border-color-primary: #242424;
+  --border-color-primary: #303030;
   --border-color-secondary: #252525;
 
   /* 禁用状态颜色 */

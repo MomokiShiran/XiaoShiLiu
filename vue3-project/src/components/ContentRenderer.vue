@@ -1,5 +1,5 @@
 <template>
-  <div class="content-renderer">
+  <div class="content-renderer" :class="{ compact }">
     <!-- 文字内容 -->
     <div v-if="text" class="content-text">
       <span class="mention-text" v-html="parsedText" @click="handleMentionClick"></span>
@@ -29,6 +29,10 @@ const props = defineProps({
   text: {
     type: String,
     default: ''
+  },
+  compact: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -185,7 +189,7 @@ const handleImageError = (event) => {
 }
 
 .images-grid.single {
-  grid-template-columns: 1fr;
+  display: flex;
   max-width: 200px;
 }
 
@@ -211,15 +215,37 @@ const handleImageError = (event) => {
 
 .image-item {
   position: relative;
-  aspect-ratio: 1;
-  cursor: pointer;
+  cursor: zoom-in;
   border-radius: 4px;
   overflow: hidden;
   transition: transform 0.2s ease;
 }
 
-.image-item:hover {
-  transform: scale(1.02);
+.image-item:hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+.images-grid:not(.single) .image-item {
+  aspect-ratio: 1;
+}
+
+.images-grid.single .image-item {
+  overflow: hidden;
+  border-radius: 8px;
+  cursor: zoom-in;
+  width: fit-content;
+}
+
+.images-grid.single .content-image {
+  display: block;
+  max-width: 100%;
+  max-height: 160px;
+  width: auto;
+  height: auto;
 }
 
 .content-image {
@@ -250,5 +276,9 @@ const handleImageError = (event) => {
   .images-grid.multiple {
     max-width: 180px;
   }
+}
+
+.content-renderer.compact .images-grid {
+  max-width: 140px;
 }
 </style>

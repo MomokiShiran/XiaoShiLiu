@@ -59,6 +59,42 @@ export const setTheme = (theme) => {
   return applyTheme(theme)
 }
 
+// 检测是否支持 View Transitions
+function supportsViewTransition() {
+  return typeof document !== 'undefined' &&
+    typeof document.startViewTransition === 'function'
+}
+
+export function setTransitionOriginFromEvent(ev) {
+  const x = ev?.clientX ?? window.innerWidth
+  const y = ev?.clientY ?? 0
+  const xp = `${(x / window.innerWidth) * 100}%`
+  const yp = `${(y / window.innerHeight) * 100}%`
+  document.documentElement.style.setProperty('--theme-transition-x', xp)
+  document.documentElement.style.setProperty('--theme-transition-y', yp)
+}
+
+// 带圆形扩散动效的主题切换
+export function setThemeWithTransition(theme, ev) {
+  const current = document.documentElement.getAttribute('data-theme')
+  if (current === theme) return
+  if (ev) {
+    setTransitionOriginFromEvent(ev)
+  } else {
+    document.documentElement.style.setProperty('--theme-transition-x', '100%')
+    document.documentElement.style.setProperty('--theme-transition-y', '0%')
+  }
+
+  if (!supportsViewTransition()) {
+    setTheme(theme)
+    return
+  }
+
+  document.startViewTransition(() => {
+    setTheme(theme)
+  })
+}
+
 // 主题选项配置
 export const themeOptions = [
   {

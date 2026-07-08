@@ -19,7 +19,7 @@
             <label for="username" class="form-label">用户名</label>
             <div class="input-wrapper">
               <input type="text" id="username" v-model="formData.username" class="form-input"
-                :class="{ 'error': errors.username }" placeholder="请输入用户名" @input="clearError('username')" />
+                :class="{ 'error': errors.username }" placeholder="请输入用户名" autocomplete="off" @input="clearError('username')" />
             </div>
             <span v-if="errors.username" class="error-message">{{ errors.username }}</span>
           </div>
@@ -29,7 +29,7 @@
             <label for="password" class="form-label">密码</label>
             <div class="input-wrapper">
               <input type="password" id="password" v-model="formData.password" class="form-input"
-                :class="{ 'error': errors.password }" placeholder="请输入密码" @input="clearError('password')" />
+                :class="{ 'error': errors.password }" placeholder="请输入密码" autocomplete="new-password" @input="clearError('password')" />
             </div>
             <span v-if="errors.password" class="error-message">{{ errors.password }}</span>
           </div>
