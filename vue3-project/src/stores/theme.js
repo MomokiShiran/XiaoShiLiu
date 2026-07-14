@@ -3,6 +3,7 @@ import { ref, computed, onUnmounted } from 'vue'
 import {
   getSavedTheme,
   setTheme as setThemeUtil,
+  setThemeWithTransition,
   getSystemTheme,
   themeOptions
 } from '@/utils/themeUtils'
@@ -29,21 +30,21 @@ export const useThemeStore = defineStore('theme', () => {
   const isSystem = computed(() => currentTheme.value === 'system')
 
   // 设置主题
-  const setTheme = (theme) => {
+  const setTheme = (theme, ev) => {
     currentTheme.value = theme
-    setThemeUtil(theme)
+    setThemeWithTransition(theme, ev)
   }
 
   // 切换到下一个主题
-  const toggleTheme = () => {
+  const toggleTheme = (ev) => {
     const currentIndex = themeOptions.findIndex(option => option.value === currentTheme.value)
     const nextIndex = (currentIndex + 1) % themeOptions.length
-    setTheme(themeOptions[nextIndex].value)
+    setTheme(themeOptions[nextIndex].value, ev)
   }
 
   //切换主题但省略跟随系统，只有亮暗切换
-  const toggleTwoTheme = () => {
-    setTheme(currentTheme.value === 'light' ? 'dark' : 'light')
+  const toggleTwoTheme = (ev) => {
+    setTheme(currentTheme.value === 'light' ? 'dark' : 'light', ev)
   }
 
   // 监听系统主题变化

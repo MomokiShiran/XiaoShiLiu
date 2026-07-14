@@ -2560,7 +2560,7 @@ router.get('/monitor/activities', adminAuth, async (req, res) => {
         nickname: user.nickname,
         avatar: user.avatar,
         title: `新用户注册`,
-        content: `用户 ${user.nickname} (${user.user_id}) 注册了账号`,
+        content: `用户 ${user.nickname} 注册了账号`,
         target_id: user.id,
         created_at: user.created_at
       })
@@ -2574,7 +2574,7 @@ router.get('/monitor/activities', adminAuth, async (req, res) => {
         nickname: post.nickname,
         avatar: post.avatar,
         title: post.title,
-        content: `${post.nickname} 发布了笔记《${post.title}》`,
+        content: `发布了笔记《${post.title}》`,
         target_id: post.id,
         created_at: post.created_at
       })
@@ -2589,7 +2589,7 @@ router.get('/monitor/activities', adminAuth, async (req, res) => {
         avatar: comment.avatar,
         title: comment.post_title,
         content: comment.content, // 原始评论内容，用于CommentImage组件渲染
-        description: `${comment.nickname} 在《${comment.post_title}》中发表了评论`,
+        description: `在《${comment.post_title}》中发表了评论`,
         target_id: comment.post_id,
         created_at: comment.created_at
       })

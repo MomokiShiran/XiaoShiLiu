@@ -10,7 +10,7 @@
 
           <div v-for="(option, index) in themeStore.themeOptions" :key="option.value" class="theme-option-wrapper">
             <button class="theme-toggle-option" :class="{ 'active': themeStore.currentTheme === option.value }"
-              @click="themeStore.setTheme(option.value)">
+              @click="themeStore.setTheme(option.value, $event)">
               <SvgIcon :name="option.icon" width="14" height="14" />
             </button>
             <div class="tooltip">{{ option.label }}</div>

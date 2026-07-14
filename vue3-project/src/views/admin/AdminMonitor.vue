@@ -18,20 +18,18 @@
                 @error="onAvatarError($event)" />
             </div>
             <div class="activity-content">
-              <div class="activity-title">
-                <template v-if="activity.type === 'comment_publish'">
-                  <div class="comment-description">{{ activity.description }}</div>
-                  <ContentRenderer :content="activity.content" />
-                </template>
-                <ContentRenderer v-else :text="activity.description || activity.content" />
-              </div>
+              <div class="activity-nickname">{{ activity.nickname }}</div>
               <div class="activity-meta">
                 <span class="activity-type">{{ getActivityTypeText(activity.type) }}</span>
-                <span class="activity-user">{{ activity.nickname }}</span>
+                <span class="activity-time">{{ formatTime(activity.created_at) }}</span>
               </div>
-            </div>
-            <div class="activity-time">
-              {{ formatTime(activity.created_at) }}
+              <div class="activity-body">
+                <template v-if="activity.type === 'comment_publish'">
+                  <div class="comment-description">{{ activity.description }}</div>
+                  <ContentRenderer :content="activity.content" compact />
+                </template>
+                <ContentRenderer v-else :text="activity.description || activity.content" compact />
+              </div>
             </div>
           </div>
         </div>
@@ -201,8 +199,8 @@ onMounted(() => {
 
 .activity-item {
   display: flex;
-  align-items: center;
-  padding: 20px 32px;
+  align-items: flex-start;
+  padding: 14px 32px 14px 16px;
   border-bottom: 1px solid var(--border-color-primary);
   cursor: pointer;
   transition: background-color 0.2s ease;
@@ -236,20 +234,20 @@ onMounted(() => {
   min-width: 0;
 }
 
-.activity-title {
-  font-size: 16px;
-  font-weight: 500;
+.activity-nickname {
+  font-weight: 600;
   color: var(--text-color-primary);
-  margin-bottom: 4px;
-  line-height: 1.4;
+  font-size: 15px;
+  margin-bottom: 2px;
 }
 
 .activity-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 14px;
+  gap: 8px;
+  font-size: 13px;
   color: var(--text-color-secondary);
+  margin-bottom: 4px;
 }
 
 .activity-type {
@@ -257,12 +255,18 @@ onMounted(() => {
   background-color: var(--bg-color-secondary);
   border-radius: 4px;
   font-size: 12px;
+  flex-shrink: 0;
 }
 
 .activity-time {
-  font-size: 14px;
-  color: var(--text-color-tertiary);
+  font-size: 12px;
+  color: var(--text-color-quaternary);
   white-space: nowrap;
-  margin-left: 16px;
+}
+
+.activity-body {
+  font-size: 14px;
+  color: var(--text-color-primary);
+  line-height: 1.4;
 }
 </style>
